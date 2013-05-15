@@ -1,5 +1,5 @@
 What is This?
--------------
+=============
 
 I've heard a lot about deferreds, futures and promises in working with
 Python, Scala and Javascript and I worked with deferreds in Python in
@@ -32,7 +32,7 @@ same.  Finally, I liked the fact that Promises/A+ was a specification
 with a test suite so you can really support claims of conformance.
 
 Getting Started
----------------
+===============
 
 I'm not even going to begin to explain what I find so interesting
 about promises.  As I said above, go watch [this
@@ -55,12 +55,12 @@ these promises to notify you when they are completed or to chain
 together further computations.
 
 Extras
-------
+======
 
 I've added just a few extras beyond the Promises/A+ spec.
 
 Blocking
-========
+--------
 
 The first is that I added `wait` and `get` methods.  This way, if you
 want to block (although I'm not sure why you would, apart from
@@ -68,7 +68,7 @@ testing), you can.  These methods also includea `timeout` argument so
 you can limit the amount of time you block.
 
 Python Datatypes
-================
+----------------
 
 I've also added to useful utility functions called `listPromise` and
 `dictPromise`.  The `listPromise` function takes arguments that are
@@ -85,7 +85,7 @@ focused on these two collection types.  If you feel that a monadic
 approach is required, I look forward to your pull request. :-)
 
 Callbacks
-=========
+---------
 
 It is possible to add callbacks to promises for pure notification
 purposes.  To do this, use the `addCallback(...)` or `addErrback(...)`
@@ -94,7 +94,10 @@ methods.  These methods expect a function that takes a single argument
 rejection in the case of errbacks).
 
 Testing
--------
+=======
+
+Test Suite and Coverage
+-----------------------
 
 I attempted to create a test suite based on the Promises/A+ spec.  I
 couldn't really reuse the existing Javascript test suite, so I pretty
