@@ -231,7 +231,6 @@ def test_3_2_5_2_if():
     p1 = Promise()
     p1.reject("Error")
     order = []
-    print "Got here!"
     p2 = p1.then(None, lambda v: add(order, "p2"))
     p3 = p1.then(None, lambda v: add(order, "p3"))
     assert_equals(2, len(order))

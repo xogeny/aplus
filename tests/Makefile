@@ -11,4 +11,4 @@ install:	env
 	. env/bin/activate; (cd ..; python setup.py install)
 
 test:	install
-	. env/bin/activate; nosetests -s --with-coverage --cover-package=aplus .
+	. env/bin/activate; nosetests --with-coverage --cover-package=aplus .
