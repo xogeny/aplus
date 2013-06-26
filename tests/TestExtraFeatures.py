@@ -2,8 +2,9 @@
 # the Promises/A+ test suite
 
 from nose.tools import assert_equals
-from aplus import Promise, listPromise, dictPromise
+from aplus import Promise, listPromise, dictPromise, background
 from threading import Thread
+import time
 
 class DelayedFulfill(Thread):
     def __init__(self, d, p, v):
@@ -12,7 +13,6 @@ class DelayedFulfill(Thread):
         self.value = v
         Thread.__init__(self)
     def run(self):
-        import time
         time.sleep(self.delay)
         self.promise.fulfill(self.value)
 
@@ -180,3 +180,20 @@ def test_dict_promise_if():
     assert_equals(5, pd.value["a"])
     assert_equals(10, pd.value["b"])
 
+def test_background():
+    def slow_or_blocking(x):
+        time.sleep(2.0)
+        return x*x
+    def slow_or_blocking_error(x):
+        time.sleep(2.0)
+        raise ValueError("Something went wrong")
+
+    p1 = background(lambda: slow_or_blocking(5));
+    p2 = background(lambda: slow_or_blocking_error(5));
+    assert p1.isPending()
+    assert p2.isPending()
+    time.sleep(2.5)
+    assert p1.isFulfilled()
+    assert p2.isRejected()
+    assert_equals(25, p1.value)
+    assert_equals("Something went wrong", p2.reason)

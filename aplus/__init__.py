@@ -1,3 +1,5 @@
+from threading import Thread
+
 class Promise:
     """
     This is a class that attempts to comply with the
@@ -321,3 +323,23 @@ def dictPromise(m):
     handleSuccess(None, ret)
 
     return ret
+
+class BackgroundThread(Thread):
+    def __init__(self, promise, func):
+        self.promise = promise;
+        self.func = func;
+        Thread.__init__(self)
+    def run(self):
+        try:
+            val = self.func()
+            self.promise.fulfill(val)
+        except Exception, e:
+            self.promise.reject(str(e))
+
+def background(f):
+    import thread
+
+    p = Promise()
+    t = BackgroundThread(p, f)
+    t.start()
+    return p
