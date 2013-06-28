@@ -343,3 +343,17 @@ def background(f):
     t = BackgroundThread(p, f)
     t.start()
     return p
+
+def spawn(f):
+    from gevent import spawn
+    
+    def process(p, f):
+        try:
+            val = f()
+            p.fulfill(val)
+        except Exception, e:
+            p.reject(str(e))
+
+    p = Promise()
+    g = spawn(lambda: process(p, f))
+    return p
