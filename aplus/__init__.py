@@ -35,7 +35,7 @@ class Promise:
         for callback in self._callbacks:
             try:
                 callback(value)
-            except Exception, e:
+            except Exception:
                 # Ignore errors in callbacks
                 pass
         # We will never call these callbacks again, so allow
@@ -55,7 +55,7 @@ class Promise:
         for errback in self._errbacks:
             try:
                 errback(reason)
-            except Exception, e:
+            except Exception:
                 # Ignore errors in callbacks
                 pass
 
@@ -164,7 +164,7 @@ class Promise:
                     ret.fulfill(v)
                 else:
                     pass
-            except Exception, e:
+            except Exception as e:
                 ret.reject(str(e))
 
         def callAndReject(r):
@@ -185,7 +185,7 @@ class Promise:
                     ret.reject(r)
                 else:
                     pass
-            except Exception, e:
+            except Exception as e:
                 ret.reject(str(e))
         
         if self._state==self.PENDING:
@@ -220,7 +220,7 @@ class Promise:
                     ret.fulfill(self.value)
                 else:
                     pass
-            except Exception, e:
+            except Exception as e:
                 ret.reject(str(e))
         elif self._state==self.REJECTED:
             """
@@ -242,7 +242,7 @@ class Promise:
                     ret.reject(self.reason)
                 else:
                     pass
-            except Exception, e:
+            except Exception as e:
                 ret.reject(str(e))
 
         return ret
@@ -333,7 +333,7 @@ class BackgroundThread(Thread):
         try:
             val = self.func()
             self.promise.fulfill(val)
-        except Exception, e:
+        except Exception as e:
             self.promise.reject(str(e))
 
 def background(f):
@@ -351,7 +351,7 @@ def spawn(f):
         try:
             val = f()
             p.fulfill(val)
-        except Exception, e:
+        except Exception as e:
             p.reject(str(e))
 
     p = Promise()
