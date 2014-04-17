@@ -337,8 +337,6 @@ class BackgroundThread(Thread):
             self.promise.reject(str(e))
 
 def background(f):
-    import thread
-
     p = Promise()
     t = BackgroundThread(p, f)
     t.start()
