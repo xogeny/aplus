@@ -42,7 +42,7 @@ class Promise:
         # them to be garbage collected.  This is important since
         # they probably include closures which are binding variables
         # that might otherwise be garbage collected.
-        self._callback = []
+        self._callbacks = []
 
     def reject(self, reason):
         """
