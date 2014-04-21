@@ -47,7 +47,7 @@ def test_3_2_1_1():
     results = {}
     nonFunctions = [None, False, 5, {}, []]
     for v in nonFunctions:
-        testNonFunction(v, results);
+        testNonFunction(v, results)
 
     for v in nonFunctions:
         assert_equals(results[str(v)], "Error: "+str(v))
@@ -68,7 +68,7 @@ def test_3_2_1_2():
     results = {}
     nonFunctions = [None, False, 5, {}, []]
     for v in nonFunctions:
-        testNonFunction(v, results);
+        testNonFunction(v, results)
 
     for v in nonFunctions:
         assert_equals(results[str(v)], "Error: "+str(v))

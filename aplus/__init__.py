@@ -17,20 +17,19 @@ class Promise:
         """
         Initialize the Promise into a pending state.
         """
-        self._state = self.PENDING;
-        self.value = None;
-        self.reason = None;
-        self._callbacks = [];
-        self._errbacks = [];
+        self._state = self.PENDING
+        self.value = None
+        self.reason = None
+        self._callbacks = []
+        self._errbacks = []
 
     def fulfill(self, value):
         """
         Fulfill the promise with a given value.
         """
-
         assert self._state==self.PENDING
 
-        self._state=self.FULFILLED;
+        self._state=self.FULFILLED
         self.value = value
         for callback in self._callbacks:
             try:
@@ -50,7 +49,7 @@ class Promise:
         """
         assert self._state==self.PENDING
 
-        self._state=self.REJECTED;
+        self._state=self.REJECTED
         self.reason = reason
         for errback in self._errbacks:
             try:
@@ -326,8 +325,8 @@ def dictPromise(m):
 
 class BackgroundThread(Thread):
     def __init__(self, promise, func):
-        self.promise = promise;
-        self.func = func;
+        self.promise = promise
+        self.func = func
         Thread.__init__(self)
     def run(self):
         try:

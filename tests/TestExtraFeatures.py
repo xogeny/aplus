@@ -188,8 +188,8 @@ def test_background():
         time.sleep(2.0)
         raise ValueError("Something went wrong")
 
-    p1 = background(lambda: slow_or_blocking(5));
-    p2 = background(lambda: slow_or_blocking_error(5));
+    p1 = background(lambda: slow_or_blocking(5))
+    p2 = background(lambda: slow_or_blocking_error(5))
     assert p1.isPending()
     assert p2.isPending()
     time.sleep(2.5)
@@ -209,8 +209,8 @@ def test_spawn():
         time.sleep(2.0)
         raise ValueError("Something went wrong")
 
-    p1 = spawn(lambda: slow_or_blocking(5));
-    p2 = spawn(lambda: slow_or_blocking_error(5));
+    p1 = spawn(lambda: slow_or_blocking(5))
+    p2 = spawn(lambda: slow_or_blocking_error(5))
     assert p1.isPending()
     assert p2.isPending()
     gevent.sleep(2.5)
