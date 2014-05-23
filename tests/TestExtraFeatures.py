@@ -196,7 +196,8 @@ def test_background():
     assert p1.isFulfilled()
     assert p2.isRejected()
     assert_equals(25, p1.value)
-    assert_equals("Something went wrong", p2.reason)
+    assert isinstance(p2.reason, ValueError)
+    assert_equals("Something went wrong", str(p2.reason))
 
 def test_spawn():
     import gevent
@@ -218,4 +219,5 @@ def test_spawn():
     assert p1.isFulfilled()
     assert p2.isRejected()
     assert_equals(25, p1.value)
-    assert_equals("Something went wrong", p2.reason)
+    assert isinstance(p2.reason, ValueError)
+    assert_equals("Something went wrong", str(p2.reason))
