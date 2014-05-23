@@ -2,6 +2,7 @@
 # the Promises/A+ test suite
 
 from nose.tools import assert_equals
+from unittest.case import SkipTest
 from aplus import Promise, listPromise, dictPromise, background, spawn
 from threading import Thread
 import time
@@ -188,8 +189,8 @@ def test_background():
         time.sleep(2.0)
         raise ValueError("Something went wrong")
 
-    p1 = background(lambda: slow_or_blocking(5));
-    p2 = background(lambda: slow_or_blocking_error(5));
+    p1 = background(lambda: slow_or_blocking(5))
+    p2 = background(lambda: slow_or_blocking_error(5))
     assert p1.isPending()
     assert p2.isPending()
     time.sleep(2.5)
@@ -199,18 +200,19 @@ def test_background():
     assert_equals("Something went wrong", p2.reason)
 
 def test_spawn():
-    import gevent
+    try:
+        import gevent
+    except ImportError:
+        raise SkipTest
     def slow_or_blocking(x):
-        print "evaluation started"
         time.sleep(2.0)
         return x*x
     def slow_or_blocking_error(x):
-        print "evaluation started"
         time.sleep(2.0)
         raise ValueError("Something went wrong")
 
-    p1 = spawn(lambda: slow_or_blocking(5));
-    p2 = spawn(lambda: slow_or_blocking_error(5));
+    p1 = spawn(lambda: slow_or_blocking(5))
+    p2 = spawn(lambda: slow_or_blocking_error(5))
     assert p1.isPending()
     assert p2.isPending()
     gevent.sleep(2.5)
