@@ -205,11 +205,9 @@ def test_spawn():
     except ImportError:
         raise SkipTest
     def slow_or_blocking(x):
-        print "evaluation started"
         time.sleep(2.0)
         return x*x
     def slow_or_blocking_error(x):
-        print "evaluation started"
         time.sleep(2.0)
         raise ValueError("Something went wrong")
 
