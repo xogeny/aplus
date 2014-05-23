@@ -284,7 +284,7 @@ def listPromise(*args):
             if not arg.isFulfilled():
                 return
 
-        value = map(lambda p: p.value, args)
+        value = list(map(lambda p: p.value, args))
         ret.fulfill(value)
 
     for arg in args:
