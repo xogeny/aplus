@@ -23,6 +23,18 @@ class Promise:
         self._callbacks = []
         self._errbacks = []
 
+    # We don't really need to compare Promise objects, but there's no default
+    # comparison in Python 3, and it's handy to have something in place if, for
+    # instance, the Promise is put into a heapq.
+    def __eq__(self, other):
+        return type(self) == type(other)
+
+    def __gt__(self, other):
+        return type(self) != type(other)
+
+    def __lt__(self, other):
+        return type(self) != type(other)
+
     def fulfill(self, value):
         """
         Fulfill the promise with a given value.
