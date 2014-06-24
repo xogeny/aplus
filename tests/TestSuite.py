@@ -254,6 +254,19 @@ def test_3_2_6_1():
     p2.reject("Error")
     assert_equals(5, pr.value)
 
+def test_3_2_6_1_literally():
+    """
+    If _either_ onFulfilled or onRejected returns a value 
+    that is not a promise, promise2 must be fulfilled with that value
+    """
+    def _raise(e):
+        raise e
+    
+    p1 = Promise()
+    pf = p1.then(lambda v : _raise(Exception("Error")), lambda x : "catched")
+    p1.fulfill(5)
+    assert_equals(pf.value, "catched")
+
 def test_3_2_6_2_when():
     """
     Promises returned by then must be rejected when any of their
