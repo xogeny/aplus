@@ -1,4 +1,27 @@
-from threading import Thread
+from threading import Event, RLock, Thread
+
+
+class CountdownLatch:
+    def __init__(self, count):
+        assert count >= 0
+
+        self._lock = RLock()
+        self._count = count
+
+    def dec(self):
+        with self._lock:
+            assert self._count > 0
+
+            self._count -= 1
+
+            # Return inside lock to return the correct value,
+            # otherwise an other thread could already have
+            # decremented again.
+            return self._count
+
+    @property
+    def count(self):
+        return self._count
 
 
 class Promise:
@@ -21,61 +44,102 @@ class Promise:
         self._state = self.PENDING
         self.value = None
         self.reason = None
+        self._cb_lock = RLock()
         self._callbacks = []
         self._errbacks = []
 
-    def fulfill(self, value):
+    @staticmethod
+    def value(x):
+        p = Promise()
+        p.fulfill(x)
+        return p
+
+    @staticmethod
+    def rejection(reason):
+        p = Promise()
+        p.reject(reason)
+        return p
+
+    def fulfill(self, x):
         """
         Fulfill the promise with a given value.
         """
 
-        assert self._state == self.PENDING
+        if self is x:
+            raise TypeError("Cannot resolve promise with itself.")
+        elif _isPromise(x):
+            try:
+                _promisify(x).done(self.fulfill, self.reject)
+            except Exception as e:
+                self.reject(e)
+        elif hasattr(x, 'then') and _isFunction(x.then):
+            try:
+                # Ignore the returned promise
+                x.then(self.fulfill, self.reject)
+            except Exception as e:
+                self.reject(e)
+        else:
+            self._fulfill(x)
 
-        self._state = self.FULFILLED
-        self.value = value
-        for callback in self._callbacks:
+    def _fulfill(self, value):
+        with self._cb_lock:
+            assert self._state == self.PENDING
+
+            self.value = value
+            self._state = self.FULFILLED
+
+            callbacks = self._callbacks
+            # We will never call these callbacks again, so allow
+            # them to be garbage collected.  This is important since
+            # they probably include closures which are binding variables
+            # that might otherwise be garbage collected.
+            #
+            # Prevent future appending
+            self._callbacks = None
+
+        for callback in callbacks:
             try:
                 callback(value)
             except Exception:
                 # Ignore errors in callbacks
                 pass
-        # We will never call these callbacks again, so allow
-        # them to be garbage collected.  This is important since
-        # they probably include closures which are binding variables
-        # that might otherwise be garbage collected.
-        self._callbacks = []
 
     def reject(self, reason):
         """
         Reject this promise for a given reason.
         """
-        assert self._state == self.PENDING
+        with self._cb_lock:
+            assert self._state == self.PENDING
 
-        self._state = self.REJECTED
-        self.reason = reason
-        for errback in self._errbacks:
+            self.reason = reason
+            self._state = self.REJECTED
+
+            errbacks = self._errbacks
+            # We will never call these errbacks again, so allow
+            # them to be garbage collected.  This is important since
+            # they probably include closures which are binding variables
+            # that might otherwise be garbage collected.
+            #
+            # Prevent future appending
+            self._errbacks = None
+
+        for errback in errbacks:
             try:
                 errback(reason)
             except Exception:
-                # Ignore errors in callbacks
+                # Ignore errors in errback
                 pass
 
-        # We will never call these errbacks again, so allow
-        # them to be garbage collected.  This is important since
-        # they probably include closures which are binding variables
-        # that might otherwise be garbage collected.
-        self._errbacks = []
-
     def isPending(self):
-        """Indicate whether the Promise is still pending."""
+        """Indicate whether the Promise is still pending. Could be wrong the moment the function returns."""
         return self._state == self.PENDING
 
     def isFulfilled(self):
-        """Indicate whether the Promise has been fulfilled."""
+        """Indicate whether the Promise has been fulfilled. Could be wrong the moment the function returns."""
         return self._state == self.FULFILLED
 
     def isRejected(self):
-        """Indicate whether the Promise has been rejected."""
+        """Indicate whether the Promise has been rejected. Could be wrong the moment the function returns."""
         return self._state == self.REJECTED
 
     def get(self, timeout=None):
@@ -92,12 +156,13 @@ class Promise:
         polling but instead utilizes a "real" synchronization
         scheme.
         """
-        import threading
-
+        # This is a correct performance optimization in case of concurrency.
+        # State can never switch back to PENDING again and is thus safe to read
+        # without acquiring the lock.
         if self._state != self.PENDING:
             return
 
-        e = threading.Event()
+        e = Event()
         self.addCallback(lambda v: e.set())
         self.addErrback(lambda r: e.set())
         e.wait(timeout)
@@ -108,7 +173,20 @@ class Promise:
         if you intend to use the value of the promise somehow in
         the callback, it is more convenient to use the 'then' method.
         """
-        self._callbacks.append(f)
+        assert _isFunction(f)
+
+        with self._cb_lock:
+            if self._state == self.PENDING:
+                self._callbacks.append(f)
+                return
+
+        # This is a correct performance optimization in case of concurrency.
+        # State can never change once it is not PENDING anymore and is thus safe to read
+        # without acquiring the lock.
+        if self._state == self.FULFILLED:
+            f(self.value)
+        else:
+            pass
 
     def addErrback(self, f):
         """
@@ -117,7 +195,34 @@ class Promise:
         somehow in the callback, it is more convenient to use
         the 'then' method.
         """
-        self._errbacks.append(f)
+        assert _isFunction(f)
+
+        with self._cb_lock:
+            if self._state == self.PENDING:
+                self._errbacks.append(f)
+                return
+
+        # This is a correct performance optimization in case of concurrency.
+        # State can never change once it is not PENDING anymore and is thus safe to read
+        # without acquiring the lock.
+        if self._state == self.REJECTED:
+            f(self.reason)
+        else:
+            pass
+
+    def done(self, success=None, failure=None):
+        """
+        This method takes two optional arguments.  The first argument
+        is used if the "self promise" is fulfilled and the other is
+        used if the "self promise" is rejected. In contrast to then,
+        the return value of these callback is ignored and nothing is
+        returned.
+        """
+        with self._cb_lock:
+            if success is not None:
+                self.addCallback(success)
+            if failure is not None:
+                self.addErrback(failure)
 
     def then(self, success=None, failure=None):
         """
@@ -152,19 +257,10 @@ class Promise:
             is fulfilled.
             """
             try:
-                # From 3.2.1, don't call non-functions values
                 if _isFunction(success):
-                    newvalue = success(v)
-                    if _isPromise(newvalue):
-                        newvalue.then(lambda v: ret.fulfill(v),
-                                      lambda r: ret.reject(r))
-                    else:
-                        ret.fulfill(newvalue)
-                elif success != None:
-                    # From 3.2.6.4
-                    ret.fulfill(v)
+                    ret.fulfill(success(v))
                 else:
-                    pass
+                    ret.fulfill(v)
             except Exception as e:
                 ret.reject(e)
 
@@ -175,76 +271,13 @@ class Promise:
             """
             try:
                 if _isFunction(failure):
-                    newvalue = failure(r)
-                    if _isPromise(newvalue):
-                        newvalue.then(lambda v: ret.fulfill(v),
-                                      lambda r: ret.reject(r))
-                    else:
-                        ret.fulfill(newvalue)
-                elif failure != None:
-                    # From 3.2.6.5
+                    ret.fulfill(failure(r))
+                else:
                     ret.reject(r)
-                else:
-                    pass
             except Exception as e:
                 ret.reject(e)
 
-        if self._state == self.PENDING:
-            """
-            If this is still pending, then add callbacks to the
-            existing promise that call either the success or
-            rejected functions supplied and then fulfill the
-            promise being returned by this method
-            """
-            if success != None:
-                self._callbacks.append(callAndFulfill)
-            if failure != None:
-                self._errbacks.append(callAndReject)
-
-        elif self._state == self.FULFILLED:
-            """
-            If this promise was already fulfilled, then
-            we need to use the first argument to this method
-            to determine the value to use in fulfilling the
-            promise that we return from this method.
-            """
-            try:
-                if _isFunction(success):
-                    newvalue = success(self.value)
-                    if _isPromise(newvalue):
-                        newvalue.then(lambda v: ret.fulfill(v),
-                                      lambda r: ret.reject(r))
-                    else:
-                        ret.fulfill(newvalue)
-                elif success != None:
-                    # From 3.2.6.4
-                    ret.fulfill(self.value)
-                else:
-                    pass
-            except Exception as e:
-                ret.reject(e)
-        elif self._state == self.REJECTED:
-            """
-            If this promise was already rejected, then
-            we need to use the second argument to this method
-            to determine the value to use in fulfilling the
-            promise that we return from this method.
-            """
-            try:
-                if _isFunction(failure):
-                    newvalue = failure(self.reason)
-                    if _isPromise(newvalue):
-                        newvalue.then(lambda v: ret.fulfill(v),
-                                      lambda r: ret.reject(r))
-                    else:
-                        ret.fulfill(newvalue)
-                elif failure != None:
-                    # From 3.2.6.5
-                    ret.reject(self.reason)
-                else:
-                    pass
-            except Exception as e:
-                ret.reject(e)
+        self.done(callAndFulfill, callAndReject)
 
         return ret
 
@@ -254,11 +287,7 @@ def _isFunction(v):
     A utility function to determine if the specified
     value is a function.
     """
-    if v == None:
-        return False
-    if hasattr(v, "__call__"):
-        return True
-    return False
+    return v is not None and hasattr(v, "__call__")
 
 
 def _isPromise(obj):
@@ -266,37 +295,51 @@ def _isPromise(obj):
     A utility function to determine if the specified
     object is a promise using "duck typing".
     """
-    return hasattr(obj, "fulfill") and \
-           _isFunction(getattr(obj, "fulfill")) and \
-           hasattr(obj, "reject") and \
-           _isFunction(getattr(obj, "reject")) and \
-           hasattr(obj, "then") and \
-           _isFunction(getattr(obj, "then"))
+    return isinstance(obj, Promise) or (
+        hasattr(obj, "done") and _isFunction(getattr(obj, "done"))) or (
+        hasattr(obj, "then") and _isFunction(getattr(obj, "then")))
 
 
-def listPromise(*args):
+def _promisify(obj):
+    if isinstance(obj, Promise):
+        return obj
+    elif hasattr(obj, "done") and _isFunction(getattr(obj, "done")):
+        p = Promise()
+        obj.done(p.fulfill, p.reject)
+        return p
+    elif hasattr(obj, "then") and _isFunction(getattr(obj, "then")):
+        p = Promise()
+        obj.then(p.fulfill, p.reject)
+        return p
+    else:
+        raise TypeError("Object is not a Promise like object.")
+
+
+def listPromise(*promises):
     """
     A special function that takes a bunch of promises
     and turns them into a promise for a vector of values.
     In other words, this turns an list of promises for values
     into a promise for a list of values.
     """
+    if len(promises) == 0:
+        return Promise.value([])
+
+    if len(promises) == 1 and isinstance(promises[0], list):
+        promises = promises[0]
+
     ret = Promise()
+    counter = CountdownLatch(len(promises))
 
-    def handleSuccess(v, ret):
-        for arg in args:
-            if not arg.isFulfilled():
-                return
+    def handleSuccess(_):
+        if counter.dec() == 0:
+            value = list(map(lambda p: p.value, promises))
+            ret.fulfill(value)
 
-        value = map(lambda p: p.value, args)
-        ret.fulfill(value)
+    for p in promises:
+        assert _isPromise(p)
 
-    for arg in args:
-        arg.addCallback(lambda v: handleSuccess(v, ret))
-        arg.addErrback(lambda r: ret.reject(r))
-
-    # Check to see if all the promises are already fulfilled
-    handleSuccess(None, ret)
+        _promisify(p).done(handleSuccess, ret.reject)
 
     return ret
 
@@ -308,24 +351,25 @@ def dictPromise(m):
     In other words, this turns an dictionary of promises for values
     into a promise for a dictionary of values.
     """
+    if len(m) == 0:
+        return Promise.value({})
+
     ret = Promise()
+    counter = CountdownLatch(len(m))
 
-    def handleSuccess(v, ret):
-        for p in m.values():
-            if not p.isFulfilled():
-                return
+    def handleSuccess(_):
+        if counter.dec() == 0:
+            value = {}
 
-        value = {}
-        for k in m:
-            value[k] = m[k].value
-        ret.fulfill(value)
+            for k in m:
+                value[k] = m[k].value
+
+            ret.fulfill(value)
 
     for p in m.values():
-        p.addCallback(lambda v: handleSuccess(v, ret))
-        p.addErrback(lambda r: ret.reject(r))
+        assert _isPromise(p)
 
-    # Check to see if all the promises are already fulfilled
-    handleSuccess(None, ret)
+        _promisify(p).done(handleSuccess, ret.reject)
 
     return ret
 
