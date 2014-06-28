@@ -235,6 +235,28 @@ class Promise:
             if failure is not None:
                 self.addErrback(failure)
 
+    def done_all(self, *handlers):
+        """
+        :type handlers: list[(object) -> object] | list[((object) -> object, (object) -> object)]
+        """
+        if len(handlers) == 0:
+            return
+        if len(handlers) == 1 and isinstance(handlers, tuple):
+            handlers = handlers[0]
+
+        for handler in handlers:
+            if isinstance(handler, tuple):
+                s, f = handler
+
+                self.done(s, f)
+            elif isinstance(handler, dict):
+                s = handler.get('success')
+                f = handler.get('failure')
+
+                self.done(s, f)
+            else:
+                self.done(success=handler)
+
     def then(self, success=None, failure=None):
         """
         This method takes two optional arguments.  The first argument
@@ -259,6 +281,10 @@ class Promise:
             or the reason for the promise returned by this method
             when the "self promise" is either fulfilled or rejected,
             respectively.
+
+        :type success: (object) -> object
+        :type failure: (object) -> object
+        :rtype : Promise
         """
         ret = Promise()
 
@@ -291,6 +317,37 @@ class Promise:
         self.done(callAndFulfill, callAndReject)
 
         return ret
+
+    def then_all(self, *handlers):
+        """
+        Utility function which calls 'then' for each handler provided. Handler can either
+        be a function in which case it is used as success handler, or a tuple containing
+        the success and the failure handler, where each of them could be None.
+        :type handlers: list[(object) -> object] | list[((object) -> object, (object) -> object)]
+        :param handlers
+        :rtype : list[Promise]
+        """
+        if len(handlers) == 0:
+            return []
+        if len(handlers) == 1 and isinstance(handlers, tuple):
+            handlers = handlers[0]
+
+        promises = []
+
+        for handler in handlers:
+            if isinstance(handler, tuple):
+                s, f = handler
+
+                promises.append(self.then(s, f))
+            elif isinstance(handler, dict):
+                s = handler.get('success')
+                f = handler.get('failure')
+
+                promises.append(self.then(s, f))
+            else:
+                promises.append(self.then(success=handler))
+
+        return promises
 
 
 def _isFunction(v):

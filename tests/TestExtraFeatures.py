@@ -217,6 +217,7 @@ def test_spawn():
 
     try:
         import gevent
+
         gevent.sleep(2.5)
     except ImportError:
         time.sleep(2.5)
@@ -226,3 +227,85 @@ def test_spawn():
     assert_equals(25, p1.value)
     assert isinstance(p2.reason, ValueError)
     assert_equals("Something went wrong", str(p2.reason))
+
+
+def test_done():
+    counter = [0]
+
+    def inc(_):
+        counter[0] += 1
+
+    def dec(_):
+        counter[0] -= 1
+
+    p = Promise()
+    p.done(inc, dec)
+    p.fulfill(4)
+
+    assert counter[0] == 1
+
+    p = Promise()
+    p.done(inc, dec)
+    p.done(inc, dec)
+    p.reject(4)
+
+    assert counter[0] == -1
+
+
+def test_done_all():
+    counter = [0]
+
+    def inc(_):
+        counter[0] += 1
+
+    def dec(_):
+        counter[0] -= 1
+
+    p = Promise()
+    p.done_all([
+        (inc, dec),
+        (inc, dec),
+        (inc, dec),
+    ])
+    p.fulfill(4)
+
+    assert counter[0] == 3
+
+    p = Promise()
+    p.done_all([
+        (inc, dec),
+        (inc, dec),
+    ])
+    p.reject(4)
+
+    assert counter[0] == 1
+
+
+def test_then_all():
+    p = Promise()
+
+    handlers = [
+        ((lambda x: x * x), (lambda r: 1)),
+        ((lambda x: x + x), (lambda r: 2)),
+    ]
+
+    results = p.then_all(handlers)
+
+    p.fulfill(4)
+
+    assert results[0].value == 16
+    assert results[1].value == 8
+
+    p = Promise()
+
+    handlers = [
+        ((lambda x: x * x), (lambda r: 1)),
+        ((lambda x: x + x), (lambda r: 2)),
+    ]
+
+    results = p.then_all(handlers)
+
+    p.reject(4)
+
+    assert results[0].value == 1
+    assert results[1].value == 2
