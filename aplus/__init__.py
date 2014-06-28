@@ -108,6 +108,8 @@ class Promise:
         """
         Reject this promise for a given reason.
         """
+        assert isinstance(reason, Exception)
+        
         with self._cb_lock:
             assert self._state == self.PENDING
 
@@ -159,7 +161,7 @@ class Promise:
         if self._state == self.FULFILLED:
             return self._value
         else:
-            raise ValueError("Calculation didn't yield a value")
+            raise self._reason
 
     def wait(self, timeout=None):
         """
