@@ -1,5 +1,6 @@
 from threading import Thread
 
+
 class Promise:
     """
     This is a class that attempts to comply with the
@@ -17,20 +18,20 @@ class Promise:
         """
         Initialize the Promise into a pending state.
         """
-        self._state = self.PENDING;
-        self.value = None;
-        self.reason = None;
-        self._callbacks = [];
-        self._errbacks = [];
+        self._state = self.PENDING
+        self.value = None
+        self.reason = None
+        self._callbacks = []
+        self._errbacks = []
 
     def fulfill(self, value):
         """
         Fulfill the promise with a given value.
         """
 
-        assert self._state==self.PENDING
+        assert self._state == self.PENDING
 
-        self._state=self.FULFILLED;
+        self._state = self.FULFILLED
         self.value = value
         for callback in self._callbacks:
             try:
@@ -48,9 +49,9 @@ class Promise:
         """
         Reject this promise for a given reason.
         """
-        assert self._state==self.PENDING
+        assert self._state == self.PENDING
 
-        self._state=self.REJECTED;
+        self._state = self.REJECTED
         self.reason = reason
         for errback in self._errbacks:
             try:
@@ -67,20 +68,20 @@ class Promise:
 
     def isPending(self):
         """Indicate whether the Promise is still pending."""
-        return self._state==self.PENDING
+        return self._state == self.PENDING
 
     def isFulfilled(self):
         """Indicate whether the Promise has been fulfilled."""
-        return self._state==self.FULFILLED
+        return self._state == self.FULFILLED
 
     def isRejected(self):
         """Indicate whether the Promise has been rejected."""
-        return self._state==self.REJECTED
+        return self._state == self.REJECTED
 
     def get(self, timeout=None):
         """Get the value of the promise, waiting if necessary."""
         self.wait(timeout)
-        if self._state==self.FULFILLED:
+        if self._state == self.FULFILLED:
             return self.value
         else:
             raise ValueError("Calculation didn't yield a value")
@@ -93,7 +94,7 @@ class Promise:
         """
         import threading
 
-        if self._state!=self.PENDING:
+        if self._state != self.PENDING:
             return
 
         e = threading.Event()
@@ -159,7 +160,7 @@ class Promise:
                                       lambda r: ret.reject(r))
                     else:
                         ret.fulfill(newvalue)
-                elif success!=None:
+                elif success != None:
                     # From 3.2.6.4
                     ret.fulfill(v)
                 else:
@@ -180,27 +181,27 @@ class Promise:
                                       lambda r: ret.reject(r))
                     else:
                         ret.fulfill(newvalue)
-                elif failure!=None:
+                elif failure != None:
                     # From 3.2.6.5
                     ret.reject(r)
                 else:
                     pass
             except Exception as e:
                 ret.reject(e)
-        
-        if self._state==self.PENDING:
+
+        if self._state == self.PENDING:
             """
             If this is still pending, then add callbacks to the
             existing promise that call either the success or
             rejected functions supplied and then fulfill the
             promise being returned by this method
             """
-            if success!=None:
+            if success != None:
                 self._callbacks.append(callAndFulfill)
-            if failure!=None:
+            if failure != None:
                 self._errbacks.append(callAndReject)
 
-        elif self._state==self.FULFILLED:
+        elif self._state == self.FULFILLED:
             """
             If this promise was already fulfilled, then
             we need to use the first argument to this method
@@ -215,14 +216,14 @@ class Promise:
                                       lambda r: ret.reject(r))
                     else:
                         ret.fulfill(newvalue)
-                elif success!=None:
+                elif success != None:
                     # From 3.2.6.4
                     ret.fulfill(self.value)
                 else:
                     pass
             except Exception as e:
                 ret.reject(e)
-        elif self._state==self.REJECTED:
+        elif self._state == self.REJECTED:
             """
             If this promise was already rejected, then
             we need to use the second argument to this method
@@ -237,7 +238,7 @@ class Promise:
                                       lambda r: ret.reject(r))
                     else:
                         ret.fulfill(newvalue)
-                elif failure!=None:
+                elif failure != None:
                     # From 3.2.6.5
                     ret.reject(self.reason)
                 else:
@@ -247,16 +248,18 @@ class Promise:
 
         return ret
 
+
 def _isFunction(v):
     """
     A utility function to determine if the specified
     value is a function.
     """
-    if v==None:
+    if v == None:
         return False
     if hasattr(v, "__call__"):
         return True
     return False
+
 
 def _isPromise(obj):
     """
@@ -264,11 +267,12 @@ def _isPromise(obj):
     object is a promise using "duck typing".
     """
     return hasattr(obj, "fulfill") and \
-        _isFunction(getattr(obj, "fulfill")) and \
-        hasattr(obj, "reject") and \
-        _isFunction(getattr(obj, "reject")) and \
-        hasattr(obj, "then") and \
-        _isFunction(getattr(obj, "then"))
+           _isFunction(getattr(obj, "fulfill")) and \
+           hasattr(obj, "reject") and \
+           _isFunction(getattr(obj, "reject")) and \
+           hasattr(obj, "then") and \
+           _isFunction(getattr(obj, "then"))
+
 
 def listPromise(*args):
     """
@@ -295,6 +299,7 @@ def listPromise(*args):
     handleSuccess(None, ret)
 
     return ret
+
 
 def dictPromise(m):
     """
@@ -324,11 +329,13 @@ def dictPromise(m):
 
     return ret
 
+
 class BackgroundThread(Thread):
     def __init__(self, promise, func):
-        self.promise = promise;
-        self.func = func;
+        self.promise = promise
+        self.func = func
         Thread.__init__(self)
+
     def run(self):
         try:
             val = self.func()
@@ -336,15 +343,17 @@ class BackgroundThread(Thread):
         except Exception as e:
             self.promise.reject(e)
 
+
 def background(f):
     p = Promise()
     t = BackgroundThread(p, f)
     t.start()
     return p
 
+
 def spawn(f):
     from gevent import spawn
-    
+
     def process(p, f):
         try:
             val = f()
