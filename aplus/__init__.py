@@ -1,4 +1,4 @@
-from threading import Event, RLock, Thread
+from threading import Event, RLock
 
 
 class CountdownLatch:
@@ -42,20 +42,20 @@ class Promise:
         Initialize the Promise into a pending state.
         """
         self._state = self.PENDING
-        self.value = None
-        self.reason = None
+        self._value = None
+        self._reason = None
         self._cb_lock = RLock()
         self._callbacks = []
         self._errbacks = []
 
     @staticmethod
-    def value(x):
+    def fulfilled(x):
         p = Promise()
         p.fulfill(x)
         return p
 
     @staticmethod
-    def rejection(reason):
+    def rejected(reason):
         p = Promise()
         p.reject(reason)
         return p
@@ -85,7 +85,7 @@ class Promise:
         with self._cb_lock:
             assert self._state == self.PENDING
 
-            self.value = value
+            self._value = value
             self._state = self.FULFILLED
 
             callbacks = self._callbacks
@@ -111,7 +111,7 @@ class Promise:
         with self._cb_lock:
             assert self._state == self.PENDING
 
-            self.reason = reason
+            self._reason = reason
             self._state = self.REJECTED
 
             errbacks = self._errbacks
@@ -130,23 +130,34 @@ class Promise:
                 # Ignore errors in errback
                 pass
 
+    @property
     def isPending(self):
         """Indicate whether the Promise is still pending. Could be wrong the moment the function returns."""
         return self._state == self.PENDING
 
+    @property
     def isFulfilled(self):
         """Indicate whether the Promise has been fulfilled. Could be wrong the moment the function returns."""
         return self._state == self.FULFILLED
 
+    @property
     def isRejected(self):
         """Indicate whether the Promise has been rejected. Could be wrong the moment the function returns."""
         return self._state == self.REJECTED
+
+    @property
+    def value(self):
+        return self._value
+
+    @property
+    def reason(self):
+        return self._reason
 
     def get(self, timeout=None):
         """Get the value of the promise, waiting if necessary."""
         self.wait(timeout)
         if self._state == self.FULFILLED:
-            return self.value
+            return self._value
         else:
             raise ValueError("Calculation didn't yield a value")
 
@@ -184,7 +195,7 @@ class Promise:
         # State can never change once it is not PENDING anymore and is thus safe to read
         # without acquiring the lock.
         if self._state == self.FULFILLED:
-            f(self.value)
+            f(self._value)
         else:
             pass
 
@@ -206,7 +217,7 @@ class Promise:
         # State can never change once it is not PENDING anymore and is thus safe to read
         # without acquiring the lock.
         if self._state == self.REJECTED:
-            f(self.reason)
+            f(self._reason)
         else:
             pass
 
@@ -323,7 +334,7 @@ def listPromise(*promises):
     into a promise for a list of values.
     """
     if len(promises) == 0:
-        return Promise.value([])
+        return Promise.fulfilled([])
 
     if len(promises) == 1 and isinstance(promises[0], list):
         promises = promises[0]
@@ -352,7 +363,7 @@ def dictPromise(m):
     into a promise for a dictionary of values.
     """
     if len(m) == 0:
-        return Promise.value({})
+        return Promise.fulfilled({})
 
     ret = Promise()
     counter = CountdownLatch(len(m))
@@ -374,37 +385,41 @@ def dictPromise(m):
     return ret
 
 
-class BackgroundThread(Thread):
-    def __init__(self, promise, func):
-        self.promise = promise
-        self.func = func
-        Thread.__init__(self)
+def _process(p, f):
+    try:
+        val = f()
+        p.fulfill(val)
+    except Exception as e:
+        p.reject(e)
 
-    def run(self):
-        try:
-            val = self.func()
-            self.promise.fulfill(val)
-        except Exception as e:
-            self.promise.reject(e)
+try:
+    import gevent
 
+    def spawn(f):
+        p = Promise()
+        g = gevent.spawn(lambda: _process(p, f))
+        return p
+except ImportError:
+    pass
 
-def background(f):
-    p = Promise()
-    t = BackgroundThread(p, f)
-    t.start()
-    return p
+if "spawn" not in dir():
+    try:
+        import concurrent.futures
 
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=5)
 
-def spawn(f):
-    from gevent import spawn
+        def spawn(f):
+            p = Promise()
+            executor.submit(_process, p, f)
+            return p
+    except ImportError:
+        pass
 
-    def process(p, f):
-        try:
-            val = f()
-            p.fulfill(val)
-        except Exception as e:
-            p.reject(e)
+if "spawn" not in dir():
+    from threading import Thread
 
-    p = Promise()
-    g = spawn(lambda: process(p, f))
-    return p
+    def spawn(f):
+        p = Promise()
+        t = Thread(target=_process, args=(f, p))
+        t.start()
+        return p
