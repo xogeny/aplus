@@ -420,6 +420,6 @@ if "spawn" not in dir():
 
     def spawn(f):
         p = Promise()
-        t = Thread(target=_process, args=(f, p))
+        t = Thread(target=_process, args=(p, f))
         t.start()
         return p
