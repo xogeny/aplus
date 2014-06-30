@@ -47,6 +47,7 @@ class Promise:
         self._cb_lock = RLock()
         self._callbacks = []
         self._errbacks = []
+        self._event = Event()
 
     @staticmethod
     def fulfilled(x):
@@ -83,7 +84,8 @@ class Promise:
 
     def _fulfill(self, value):
         with self._cb_lock:
-            assert self._state == self.PENDING
+            if self._state != Promise.PENDING:
+                return
 
             self._value = value
             self._state = self.FULFILLED
@@ -97,6 +99,9 @@ class Promise:
             # Prevent future appending
             self._callbacks = None
 
+            # Notify all waiting
+            self._event.set()
+
         for callback in callbacks:
             try:
                 callback(value)
@@ -109,9 +114,10 @@ class Promise:
         Reject this promise for a given reason.
         """
         assert isinstance(reason, Exception)
-        
+
         with self._cb_lock:
-            assert self._state == self.PENDING
+            if self._state != Promise.PENDING:
+                return
 
             self._reason = reason
             self._state = self.REJECTED
@@ -124,6 +130,9 @@ class Promise:
             #
             # Prevent future appending
             self._errbacks = None
+
+            # Notify all waiting
+            self._event.set()
 
         for errback in errbacks:
             try:
@@ -158,7 +167,10 @@ class Promise:
     def get(self, timeout=None):
         """Get the value of the promise, waiting if necessary."""
         self.wait(timeout)
-        if self._state == self.FULFILLED:
+
+        if self._state == self.PENDING:
+            raise RuntimeError("Value not available, promise is still pending")
+        elif self._state == self.FULFILLED:
             return self._value
         else:
             raise self._reason
@@ -169,16 +181,7 @@ class Promise:
         polling but instead utilizes a "real" synchronization
         scheme.
         """
-        # This is a correct performance optimization in case of concurrency.
-        # State can never switch back to PENDING again and is thus safe to read
-        # without acquiring the lock.
-        if self._state != self.PENDING:
-            return
-
-        e = Event()
-        self.addCallback(lambda v: e.set())
-        self.addErrback(lambda r: e.set())
-        e.wait(timeout)
+        self._event.wait(timeout)
 
     def addCallback(self, f):
         """
