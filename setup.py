@@ -3,8 +3,8 @@ from distutils.core import setup
 
 setup(
     name="aplus",
-    version="0.11",
+    version="0.11.0",
     packages=['aplus'],
-    author=u"Adrian Kündig",
-    author_email="adriankue@gmail.com"
+    author=u"Michael M. Tiller",
+    author_email="michael.tiller@gmail.com"
 )
