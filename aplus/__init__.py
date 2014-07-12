@@ -73,12 +73,6 @@ class Promise:
                 _promisify(x).done(self.fulfill, self.reject)
             except Exception as e:
                 self.reject(e)
-        elif hasattr(x, 'then') and _isFunction(x.then):
-            try:
-                # Ignore the returned promise
-                x.then(self.fulfill, self.reject)
-            except Exception as e:
-                self.reject(e)
         else:
             self._fulfill(x)
 
@@ -169,7 +163,7 @@ class Promise:
         self.wait(timeout)
 
         if self._state == self.PENDING:
-            raise RuntimeError("Value not available, promise is still pending")
+            raise ValueError("Value not available, promise is still pending")
         elif self._state == self.FULFILLED:
             return self._value
         else:
@@ -246,7 +240,7 @@ class Promise:
         """
         if len(handlers) == 0:
             return
-        if len(handlers) == 1 and isinstance(handlers, tuple):
+        elif len(handlers) == 1 and isinstance(handlers[0], list):
             handlers = handlers[0]
 
         for handler in handlers:
@@ -334,7 +328,7 @@ class Promise:
         """
         if len(handlers) == 0:
             return []
-        if len(handlers) == 1 and isinstance(handlers, tuple):
+        elif len(handlers) == 1 and isinstance(handlers[0], list):
             handlers = handlers[0]
 
         promises = []
@@ -395,11 +389,11 @@ def listPromise(*promises):
     In other words, this turns an list of promises for values
     into a promise for a list of values.
     """
-    if len(promises) == 0:
-        return Promise.fulfilled([])
-
     if len(promises) == 1 and isinstance(promises[0], list):
         promises = promises[0]
+
+    if len(promises) == 0:
+        return Promise.fulfilled([])
 
     ret = Promise()
     counter = CountdownLatch(len(promises))

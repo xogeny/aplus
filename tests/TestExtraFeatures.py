@@ -1,10 +1,15 @@
 # This exercises some capabilities above and beyond
 # the Promises/A+ test suite
 
-from nose.tools import assert_equals
+from nose.tools import assert_equals, assert_is_instance, assert_raises
 from aplus import Promise, listPromise, dictPromise, spawn
 from threading import Thread
 import time
+
+
+def assert_exception(exception, expected_exception_cls, expected_message):
+    assert_is_instance(exception, expected_exception_cls)
+    assert_equals(str(exception), expected_message)
 
 
 class DelayedFulfill(Thread):
@@ -31,6 +36,11 @@ class DelayedRejection(Thread):
         self.promise.reject(self.reason)
 
 
+class FakePromise():
+    def then(self, s=None, f=None):
+        raise Exception("FakePromise raises in 'then'")
+
+
 def df(value, dtime):
     p = Promise()
     t = DelayedFulfill(dtime, p, value)
@@ -47,6 +57,25 @@ def dr(reason, dtime):
     return p
 
 
+# Static methods
+def test_fulfilled():
+    p = Promise.fulfilled(4)
+    assert p.isFulfilled
+    assert_equals(p.value, 4)
+
+
+def test_rejected():
+    p = Promise.rejected(Exception("Static rejected"))
+    assert p.isRejected
+    assert_exception(p.reason, Exception, "Static rejected")
+
+
+# Fulfill
+def test_fulfill_self():
+    p = Promise()
+    assert_raises(TypeError, p.fulfill, p)
+
+
 # Exceptions
 def test_exceptions():
     def throws(v):
@@ -58,7 +87,16 @@ def test_exceptions():
 
     p2 = Promise()
     p2.addErrback(throws)
-    p2.reject("Error")
+    p2.reject(Exception())
+
+    assert_raises(Exception, p2.get)
+
+
+def test_fake_promise():
+    p = Promise()
+    p.fulfill(FakePromise())
+    assert p.isRejected
+    assert_exception(p.reason, Exception, "FakePromise raises in 'then'")
 
 
 # WAIT
@@ -140,17 +178,31 @@ def test_list_promise_when():
 
 def test_list_promise_if():
     p1 = Promise()
-    p1.fulfill(5)
     p2 = Promise()
+    pd1 = listPromise([p1, p2])
+    pd2 = listPromise([p1])
+    pd3 = listPromise([])
+    assert p1.isPending
+    assert p2.isPending
+    assert pd1.isPending
+    assert pd2.isPending
+    assert pd3.isFulfilled
+    p1.fulfill(5)
+    assert p1.isFulfilled
+    assert p2.isPending
+    assert pd1.isPending
+    assert pd2.isFulfilled
     p2.fulfill(10)
-    pl = listPromise(p1, p2)
     assert p1.isFulfilled
     assert p2.isFulfilled
-    assert pl.isFulfilled
+    assert pd1.isFulfilled
+    assert pd2.isFulfilled
     assert_equals(5, p1.value)
     assert_equals(10, p2.value)
-    assert_equals(5, pl.value[0])
-    assert_equals(10, pl.value[1])
+    assert_equals(5, pd1.value[0])
+    assert_equals(5, pd2.value[0])
+    assert_equals(10, pd1.value[1])
+    assert_equals([], pd3.value)
 
 
 # dictPromise
@@ -158,22 +210,30 @@ def test_dict_promise_when():
     p1 = Promise()
     p2 = Promise()
     d = {"a": p1, "b": p2}
-    pd = dictPromise(d)
+    pd1 = dictPromise(d)
+    pd2 = dictPromise({"a": p1})
+    pd3 = dictPromise({})
     assert p1.isPending
     assert p2.isPending
-    assert pd.isPending
+    assert pd1.isPending
+    assert pd2.isPending
+    assert pd3.isFulfilled
     p1.fulfill(5)
     assert p1.isFulfilled
     assert p2.isPending
-    assert pd.isPending
+    assert pd1.isPending
+    assert pd2.isFulfilled
     p2.fulfill(10)
     assert p1.isFulfilled
     assert p2.isFulfilled
-    assert pd.isFulfilled
+    assert pd1.isFulfilled
+    assert pd2.isFulfilled
     assert_equals(5, p1.value)
     assert_equals(10, p2.value)
-    assert_equals(5, pd.value["a"])
-    assert_equals(10, pd.value["b"])
+    assert_equals(5, pd1.value["a"])
+    assert_equals(5, pd2.value["a"])
+    assert_equals(10, pd1.value["b"])
+    assert_equals({}, pd3.value)
 
 
 def test_dict_promise_if():
@@ -242,14 +302,14 @@ def test_done():
     p.done(inc, dec)
     p.fulfill(4)
 
-    assert counter[0] == 1
+    assert_equals(counter[0], 1)
 
     p = Promise()
     p.done(inc, dec)
     p.done(inc, dec)
-    p.reject(4)
+    p.reject(Exception())
 
-    assert counter[0] == -1
+    assert_equals(counter[0], -1)
 
 
 def test_done_all():
@@ -262,23 +322,27 @@ def test_done_all():
         counter[0] -= 1
 
     p = Promise()
+    p.done_all()
+    p.done_all((inc, dec))
     p.done_all([
         (inc, dec),
         (inc, dec),
-        (inc, dec),
+        {'success': inc, 'failure': dec},
     ])
     p.fulfill(4)
 
-    assert counter[0] == 3
+    assert_equals(counter[0], 4)
 
     p = Promise()
+    p.done_all()
+    p.done_all((inc, dec))
     p.done_all([
         (inc, dec),
-        (inc, dec),
+        {'success': inc, 'failure': dec},
     ])
-    p.reject(4)
+    p.reject(Exception())
 
-    assert counter[0] == 1
+    assert_equals(counter[0], 1)
 
 
 def test_then_all():
@@ -286,26 +350,28 @@ def test_then_all():
 
     handlers = [
         ((lambda x: x * x), (lambda r: 1)),
-        ((lambda x: x + x), (lambda r: 2)),
+        {'success': (lambda x: x + x), 'failure': (lambda r: 2)},
     ]
 
-    results = p.then_all(handlers)
+    results = p.then_all() + p.then_all(((lambda x: x * x), (lambda r: 1))) + p.then_all(handlers)
 
     p.fulfill(4)
 
-    assert results[0].value == 16
-    assert results[1].value == 8
+    assert_equals(results[0].value, 16)
+    assert_equals(results[1].value, 16)
+    assert_equals(results[2].value, 8)
 
     p = Promise()
 
     handlers = [
         ((lambda x: x * x), (lambda r: 1)),
-        ((lambda x: x + x), (lambda r: 2)),
+        {'success': (lambda x: x + x), 'failure': (lambda r: 2)},
     ]
 
-    results = p.then_all(handlers)
+    results = p.then_all() + p.then_all(((lambda x: x * x), (lambda r: 1))) + p.then_all(handlers)
 
-    p.reject(4)
+    p.reject(Exception())
 
-    assert results[0].value == 1
-    assert results[1].value == 2
+    assert_equals(results[0].value, 1)
+    assert_equals(results[1].value, 1)
+    assert_equals(results[2].value, 2)

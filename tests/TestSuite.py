@@ -4,8 +4,13 @@
 # into Python and then apply it to the
 # promises library I've created.
 
-from nose.tools import assert_equals
+from nose.tools import assert_equals, assert_is_instance
 from aplus import Promise
+
+
+def assert_exception(exception, expected_exception_cls, expected_message):
+    assert_is_instance(exception, expected_exception_cls)
+    assert_equals(str(exception), expected_message)
 
 
 class Counter:
@@ -18,7 +23,7 @@ class Counter:
         self.count = 0
 
     def tick(self):
-        self.count = self.count + 1
+        self.count += 1
 
     def value(self):
         return self.count
@@ -34,7 +39,7 @@ def test_3_2_1():
     p3 = Promise()
     p4 = p3.then()
     p1.fulfill(5)
-    p3.reject("How dare you!")
+    p3.reject(Exception("How dare you!"))
 
 
 def test_3_2_1_1():
@@ -42,22 +47,22 @@ def test_3_2_1_1():
     That that the first argument to 'then' is ignored if it
     is not a function.
     """
+    results = {}
+    nonFunctions = [None, False, 5, {}, []]
 
-    def testNonFunction(nonFunction, results):
-        def foo(results, k, r):
+    def testNonFunction(nonFunction):
+        def foo(k, r):
             results[k] = r
 
         p1 = Promise()
-        p2 = p1.then(nonFunction, lambda r: foo(results, str(nonFunction), r))
-        p1.reject("Error: " + str(nonFunction))
-
-    results = {}
-    nonFunctions = [None, False, 5, {}, []]
-    for v in nonFunctions:
-        testNonFunction(v, results);
+        p2 = p1.then(nonFunction, lambda r: foo(str(nonFunction), r))
+        p1.reject(Exception("Error: " + str(nonFunction)))
 
     for v in nonFunctions:
-        assert_equals(results[str(v)], "Error: " + str(v))
+        testNonFunction(v)
+
+    for v in nonFunctions:
+        assert_exception(results[str(v)], Exception, "Error: " + str(v))
 
 
 def test_3_2_1_2():
@@ -65,22 +70,22 @@ def test_3_2_1_2():
     That that the second argument to 'then' is ignored if it
     is not a function.
     """
+    results = {}
+    nonFunctions = [None, False, 5, {}, []]
 
-    def testNonFunction(nonFunction, results):
-        def foo(results, k, r):
+    def testNonFunction(nonFunction):
+        def foo(k, r):
             results[k] = r
 
         p1 = Promise()
-        p2 = p1.then(lambda r: foo(results, str(nonFunction), r), nonFunction)
+        p2 = p1.then(lambda r: foo(str(nonFunction), r), nonFunction)
         p1.fulfill("Error: " + str(nonFunction))
 
-    results = {}
-    nonFunctions = [None, False, 5, {}, []]
     for v in nonFunctions:
-        testNonFunction(v, results);
+        testNonFunction(v)
 
     for v in nonFunctions:
-        assert_equals(results[str(v)], "Error: " + str(v))
+        assert_equals("Error: " + str(v), results[str(v)])
 
 
 def test_3_2_2_1():
@@ -129,7 +134,7 @@ def test_3_2_2_3():
     cr = Counter()
     p1 = Promise()
     p2 = p1.then(lambda v: cf.tick(), lambda r: cr.tick())
-    p1.reject("Error")
+    p1.reject(Exception("Error"))
     assert_equals(0, cf.value())
     assert_equals(1, cr.value())
 
@@ -143,12 +148,12 @@ def test_3_2_3_1():
     c = Counter()
 
     def check(r, c):
-        assert_equals(r, "Error")
+        assert_exception(r, Exception, "Error")
         c.tick()
 
     p1 = Promise()
     p2 = p1.then(None, lambda r: check(r, c))
-    p1.reject("Error")
+    p1.reject(Exception("Error"))
     assert_equals(1, c.value())
 
 
@@ -160,10 +165,10 @@ def test_3_2_3_2():
     c = Counter()
     p1 = Promise()
     p2 = p1.then(None, lambda v: c.tick())
-    p1.reject("Error")
+    p1.reject(Exception("Error"))
     try:
         # I throw an exception
-        p1.reject("Error")
+        p1.reject(Exception("Error"))
         assert False  # Should not get here!
     except AssertionError:
         # This is expected
@@ -239,7 +244,7 @@ def test_3_2_5_2_when():
     order = []
     p2 = p1.then(None, lambda v: add(order, "p2"))
     p3 = p1.then(None, lambda v: add(order, "p3"))
-    p1.reject("Error")
+    p1.reject(Exception("Error"))
     assert_equals(2, len(order))
     assert_equals("p2", order[0])
     assert_equals("p3", order[1])
@@ -256,7 +261,7 @@ def test_3_2_5_2_if():
         l.append(v)
 
     p1 = Promise()
-    p1.reject("Error")
+    p1.reject(Exception("Error"))
     order = []
     p2 = p1.then(None, lambda v: add(order, "p2"))
     p3 = p1.then(None, lambda v: add(order, "p3"))
@@ -279,7 +284,7 @@ def test_3_2_6_1():
 
     p2 = Promise()
     pr = p2.then(None, lambda r: 5)
-    p2.reject("Error")
+    p2.reject(Exception("Error"))
     assert_equals(5, pr.value)
 
 
@@ -296,15 +301,13 @@ def test_3_2_6_2_when():
     pf = p1.then(fail)
     p1.fulfill(5)
     assert pf.isRejected
-    assert isinstance(pf.reason, AssertionError)
-    assert_equals("Exception Message", str(pf.reason))
+    assert_exception(pf.reason, AssertionError, "Exception Message")
 
     p2 = Promise()
     pr = p2.then(None, fail)
-    p2.reject("Error")
+    p2.reject(Exception("Error"))
     assert pr.isRejected
-    assert isinstance(pr.reason, AssertionError)
-    assert_equals("Exception Message", str(pr.reason))
+    assert_exception(pr.reason, AssertionError, "Exception Message")
 
 
 def test_3_2_6_2_if():
@@ -320,15 +323,13 @@ def test_3_2_6_2_if():
     p1.fulfill(5)
     pf = p1.then(fail)
     assert pf.isRejected
-    assert isinstance(pf.reason, AssertionError)
-    assert_equals("Exception Message", str(pf.reason))
+    assert_exception(pf.reason, AssertionError, "Exception Message")
 
     p2 = Promise()
-    p2.reject("Error")
+    p2.reject(Exception("Error"))
     pr = p2.then(None, fail)
     assert pr.isRejected
-    assert isinstance(pr.reason, AssertionError)
-    assert_equals("Exception Message", str(pr.reason))
+    assert_exception(pr.reason, AssertionError, "Exception Message")
 
 
 def test_3_2_6_3_when_fulfilled():
@@ -358,11 +359,11 @@ def test_3_2_6_3_when_fulfilled():
     assert bad.isPending
     assert pr.isPending
     p2.fulfill(10)
-    bad.reject("Error")
+    bad.reject(Exception("Error"))
     assert bad.isRejected
-    assert_equals("Error", bad.reason)
+    assert_exception(bad.reason, Exception, "Error")
     assert pr.isRejected
-    assert_equals("Error", pr.reason)
+    assert_exception(pr.reason, Exception, "Error")
 
 
 def test_3_2_6_3_if_fulfilled():
@@ -387,12 +388,11 @@ def test_3_2_6_3_if_fulfilled():
     p2 = Promise()
     p2.fulfill(10)
     bad = Promise()
-    bad.reject("Error")
+    bad.reject(Exception("Error"))
     pr = p2.then(lambda r: bad)
-    assert bad.isRejected
-    assert_equals("Error", bad.reason)
+    assert_exception(bad.reason, Exception, "Error")
     assert pr.isRejected
-    assert_equals("Error", pr.reason)
+    assert_exception(pr.reason, Exception, "Error")
 
 
 def test_3_2_6_3_when_rejected():
@@ -409,7 +409,7 @@ def test_3_2_6_3_when_rejected():
     pr = p1.then(None, lambda r: pending)
     assert pending.isPending
     assert pr.isPending
-    p1.reject("Error")
+    p1.reject(Exception("Error"))
     pending.fulfill(10)
     assert pending.isFulfilled
     assert_equals(10, pending.value)
@@ -421,12 +421,12 @@ def test_3_2_6_3_when_rejected():
     pr = p2.then(None, lambda r: bad)
     assert bad.isPending
     assert pr.isPending
-    p2.reject("Error")
-    bad.reject("Assertion")
+    p2.reject(Exception("Error"))
+    bad.reject(Exception("Assertion"))
     assert bad.isRejected
-    assert_equals("Assertion", bad.reason)
+    assert_exception(bad.reason, Exception, "Assertion")
     assert pr.isRejected
-    assert_equals("Assertion", pr.reason)
+    assert_exception(pr.reason, Exception, "Assertion")
 
 
 def test_3_2_6_3_if_rejected():
@@ -439,7 +439,7 @@ def test_3_2_6_3_if_rejected():
     """
 
     p1 = Promise()
-    p1.reject("Error")
+    p1.reject(Exception("Error"))
     pending = Promise()
     pending.fulfill(10)
     pr = p1.then(None, lambda r: pending)
@@ -449,14 +449,14 @@ def test_3_2_6_3_if_rejected():
     assert_equals(10, pr.value)
 
     p2 = Promise()
-    p2.reject("Error")
+    p2.reject(Exception("Error"))
     bad = Promise()
-    bad.reject("Assertion")
+    bad.reject(Exception("Assertion"))
     pr = p2.then(None, lambda r: bad)
     assert bad.isRejected
-    assert_equals("Assertion", bad.reason)
+    assert_exception(bad.reason, Exception, "Assertion")
     assert pr.isRejected
-    assert_equals("Assertion", pr.reason)
+    assert_exception(pr.reason, Exception, "Assertion")
 
 
 def test_3_2_6_4_pending():
@@ -492,10 +492,10 @@ def test_3_2_6_5_pending():
     """
     p1 = Promise()
     p2 = p1.then(None, 5)
-    p1.reject("Error")
-    assert_equals("Error", p1.reason)
+    p1.reject(Exception("Error"))
+    assert_exception(p1.reason, Exception, "Error")
     assert p2.isRejected
-    assert_equals("Error", p2.reason)
+    assert_exception(p2.reason, Exception, "Error")
 
 
 def test_3_2_6_5_rejected():
@@ -504,8 +504,8 @@ def test_3_2_6_5_rejected():
     are values, not functions or promises.
     """
     p1 = Promise()
-    p1.reject("Error")
+    p1.reject(Exception("Error"))
     p2 = p1.then(None, 5)
-    assert_equals("Error", p1.reason)
+    assert_exception(p1.reason, Exception, "Error")
     assert p2.isRejected
-    assert_equals("Error", p2.reason)
+    assert_exception(p2.reason, Exception, "Error")
