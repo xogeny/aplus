@@ -54,6 +54,9 @@ response, etc.  The important part is that you can chain together
 these promises to notify you when they are completed or to chain
 together further computations.
 
+Note, when a promise is rejected, it is necessary that the value
+passed to the rejection **is a subclass of** `Exception`.
+
 Extras
 ======
 
@@ -124,3 +127,10 @@ could conform to that section.  The next best thing would be to use
 something like `twisted` which provides something like that.  But I
 didn't want to chain people down to one particular asyncronous
 framework to utilize an otherwise general purpose capability.
+
+Acknowledgments
+===============
+
+Special thanks to Adrian Kuendig for putting in considerable effort to
+ensure that this library functions properly in the face of
+concurrency.
