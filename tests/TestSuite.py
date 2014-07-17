@@ -266,13 +266,15 @@ def test_3_2_6_2_when():
     pf = p1.then(fail)
     p1.fulfill(5)
     assert pf.isRejected()
-    assert_equals("Exception Message", pf.reason)
+    assert isinstance(pf.reason, AssertionError)
+    assert_equals("Exception Message", str(pf.reason))
 
     p2 = Promise()
     pr = p2.then(None, fail)
     p2.reject("Error")
     assert pr.isRejected()
-    assert_equals("Exception Message", pr.reason)
+    assert isinstance(pr.reason, AssertionError)
+    assert_equals("Exception Message", str(pr.reason))
 
 def test_3_2_6_2_if():
     """
@@ -286,13 +288,15 @@ def test_3_2_6_2_if():
     p1.fulfill(5)
     pf = p1.then(fail)
     assert pf.isRejected()
-    assert_equals("Exception Message", pf.reason)
+    assert isinstance(pf.reason, AssertionError)
+    assert_equals("Exception Message", str(pf.reason))
 
     p2 = Promise()
     p2.reject("Error")
     pr = p2.then(None, fail)
     assert pr.isRejected()
-    assert_equals("Exception Message", pr.reason)
+    assert isinstance(pr.reason, AssertionError)
+    assert_equals("Exception Message", str(pr.reason))
 
 def test_3_2_6_3_when_fulfilled():
     """

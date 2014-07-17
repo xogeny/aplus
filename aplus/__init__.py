@@ -186,7 +186,7 @@ class Promise:
                 else:
                     pass
             except Exception as e:
-                ret.reject(str(e))
+                ret.reject(e)
 
         def callAndReject(r):
             """
@@ -207,7 +207,7 @@ class Promise:
                 else:
                     pass
             except Exception as e:
-                ret.reject(str(e))
+                ret.reject(e)
         
         if self._state == self.PENDING:
             """
@@ -242,7 +242,7 @@ class Promise:
                 else:
                     pass
             except Exception as e:
-                ret.reject(str(e))
+                ret.reject(e)
 
         elif self._state == self.REJECTED:
             """
@@ -265,7 +265,7 @@ class Promise:
                 else:
                     pass
             except Exception as e:
-                ret.reject(str(e))
+                ret.reject(e)
 
         return ret
 
@@ -356,7 +356,7 @@ class BackgroundThread(Thread):
             val = self.func()
             self.promise.fulfill(val)
         except Exception as e:
-            self.promise.reject(str(e))
+            self.promise.reject(e)
 
 def background(f):
     p = Promise()
@@ -372,7 +372,7 @@ def spawn(f):
             val = f()
             p.fulfill(val)
         except Exception as e:
-            p.reject(str(e))
+            p.reject(e)
 
     p = Promise()
     g = spawn(lambda: process(p, f))
