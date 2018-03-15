@@ -1,3 +1,5 @@
+> (Note: if anybody is interested in **becoming the maintainer of this package**, let me know.  I really don't do much Python any more so I'm not at all current on it.  I would happily let somebody else take charge of this project.)
+
 What is This?
 =============
 
