@@ -69,7 +69,7 @@ Blocking
 
 The first is that I added `wait` and `get` methods.  This way, if you
 want to block (although I'm not sure why you would, apart from
-testing), you can.  These methods also includea `timeout` argument so
+testing), you can.  These methods also include a `timeout` argument so
 you can limit the amount of time you block.
 
 Python Datatypes
